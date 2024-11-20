@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Velocidad</title>
+    <!-- Meta etiqueta para dispositivos móviles -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css">
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            color: #005a9c;
+            margin-bottom: 20px;
+        }
+        #cronometro {
+            font-size: 2.5em;
+            margin: 15px 0;
+            color: #d9534f;
+        }
+        footer {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #6c757d;
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            padding: 0.2em 0.6em;
+        }
+        /* Estilos para los botones de guardado */
+        .save-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+        .save-buttons button, .save-buttons img {
+            font-size: 0.8em;
+            padding: 4px 8px;
+            margin: 5px 5px;
+        }
+        .btn {
+            font-size: 1em;
+        }
+        @media (max-width: 576px) {
+            h1 {
+                font-size: 1.5em;
+            }
+            #cronometro {
+                font-size: 2em;
+            }
+            .save-buttons {
+                justify-content: center;
+            }
+            .save-buttons button, .save-buttons img {
+                margin: 5px;
+            }
+            .btn {
+                font-size: 1.2em;
+                padding: 0.75rem 1.25rem;
+            }
+        }
+        /* Ocultar el iframe */
+        #hidden_iframe {
+            display: none;
+        }
+    </style>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS y Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
+    <!-- jsPDF y jsPDF-AutoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        let inicio, tiempoTranscurrido = 0;
+        let corriendo = false;
+        let resultados = [];
+
+        function iniciarCronometro() {
+            if (!corriendo) {
+                inicio = Date.now();
+                corriendo = true;
+                actualizarCronometro();
+            }
+        }
+
+        function detenerCronometro() {
+            if (corriendo) {
+                tiempoTranscurrido = Date.now() - inicio;
+                corriendo = false;
+                let alumno = document.getElementById('alumno').value;
+                if (alumno) {
+                    let fechaHora = new Date().toLocaleString('es-ES', { 
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    });
+                    let horas = Math.floor((tiempoTranscurrido / (1000 * 60 * 60)) % 24);
+                    let minutos = Math.floor((tiempoTranscurrido / (1000 * 60)) % 60);
+                    let segundos = Math.floor((tiempoTranscurrido / 1000) % 60);
+                    let centesimas = Math.floor((tiempoTranscurrido % 1000) / 10);
+                    let tiempoFormateado = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}.${centesimas.toString().padStart(2, '0')}`;
+                    resultados.push({ 
+                        alumno: alumno, 
+                        tiempo: tiempoFormateado,
+                        fechaHora: fechaHora
+                    });
+                    mostrarResultados();
+                } else {
+                    alert("Por favor, selecciona un Alumno/a.");
+                }
+                document.getElementById('cronometro').textContent = '00:00:00.00';
+            }
+        }
+
+        function actualizarCronometro() {
+            if (corriendo) {
+                let tiempoActual = Date.now() - inicio;
+                let horas = Math.floor((tiempoActual / (1000 * 60 * 60)) % 24);
+                let minutos = Math.floor((tiempoActual / (1000 * 60)) % 60);
+                let segundos = Math.floor((tiempoActual / 1000) % 60);
+                let centesimas = Math.floor((tiempoActual % 1000) / 10);
+                document.getElementById('cronometro').textContent = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}.${centesimas.toString().padStart(2, '0')}`;
+                requestAnimationFrame(actualizarCronometro);
+            }
+        }
+
+        $(document).ready(function() {
+            // Inicializar DataTable una sola vez y almacenar la referencia
+            let table = $('#tablaResultados').DataTable({
+                order: [[2, 'asc']], // Ordenar inicialmente por la columna de tiempo
+                columns: [
+                    { title: '#', data: 'index' },
+                    { title: 'Alumno/a', data: 'alumno' },
+                    { 
+                        title: 'Tiempo', 
+                        data: 'tiempo'
+                    },
+                    { title: 'Fecha y Hora', data: 'fechaHora' }
+                ],
+                language: {
+                    lengthMenu: "Mostrar _MENU_ entradas",
+                    search: "Buscar:",
+                    info: "Mostrando _START_ a _END_ de _TOTAL_ entradas",
+                    infoEmpty: "Mostrando 0 a 0 de 0 entradas",
+                    infoFiltered: "(filtrado de _MAX_ entradas totales)",
+                    loadingRecords: "Cargando...",
+                    zeroRecords: "No se encontraron resultados",
+                    emptyTable: "No hay datos disponibles en la tabla",
+                    paginate: {
+                        first: "Primero",
+                        previous: "Anterior",
+                        next: "Siguiente",
+                        last: "Último"
+                    }
+                }
+            });
+
+            // Función para actualizar los resultados en la tabla
+            window.mostrarResultados = function() {
+                // Mapear los resultados para ajustarlos al formato de DataTables
+                let data = resultados.map((res, index) => ({
+                    index: index + 1,
+                    alumno: res.alumno,
+                    tiempo: res.tiempo,
+                    fechaHora: res.fechaHora
+                }));
+                // Limpiar y agregar nuevos datos
+                table.clear().rows.add(data).draw();
+            };
+        });
+
+        function guardarResultadosEnPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(14);
+            doc.text("Informe de Velocidad", 105, 10, { align: "center" });
+            doc.setFontSize(10);
+            doc.text(`Localidad: Torremolinos`, 105, 18, { align: "center" });
+            doc.text(`Temporada: 2024-25`, 105, 24, { align: "center" });
+            doc.autoTable({
+                startY: 30,
+                head: [['#', 'Alumno/a', 'Tiempo', 'Fecha y Hora']],
+                body: resultados.map((res, index) => [index + 1, res.alumno, res.tiempo, res.fechaHora]),
+                theme: 'grid',
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [0, 90, 156] },
+                margin: { left: 10, right: 10 }
+            });
+            doc.save('resultados_velocidad.pdf');
+        }
+
+        function guardarResultadosEnTXT() {
+            let contenido = "Resultados de Velocidad - CEIP LA PAZ\n\n";
+            contenido += "No.\tAlumno/a\tTiempo\tFecha y Hora\n";
+            resultados.forEach((res, index) => {
+                contenido += `${index + 1}\t${res.alumno}\t${res.tiempo}\t${res.fechaHora}\n`;
+            });
+            let blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "resultados_velocidad.txt";
+            link.click();
+        }
+
+        function guardarResultadosEnCSV() {
+            let contenido = "No.,Alumno/a,Tiempo,Fecha y Hora\n";
+            resultados.forEach((res, index) => {
+                contenido += `"${index + 1}","${res.alumno}","${res.tiempo}","${res.fechaHora}"\n`;
+            });
+            let blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "resultados_velocidad.csv";
+            link.click();
+        }
+
+        // Función para enviar los datos a Google Sheets mediante un formulario y un iframe oculto
+        function guardarEnDrive() {
+            if (resultados.length === 0) {
+                alert("No hay datos para guardar en Drive.");
+                return;
+            }
+
+            // Crear un iframe oculto
+            let iframe = document.createElement('iframe');
+            iframe.name = 'hidden_iframe';
+            iframe.id = 'hidden_iframe';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
+            // Crear un formulario oculto
+            let form = document.createElement('form');
+            form.setAttribute('method', 'post');
+            form.setAttribute('action', 'https://script.google.com/macros/s/AKfycbyxdcFoBtXH0QIvp-t48Hk3ddbemxodw36fwwYBENyv6vewec4F4ul_vBVXEXwSoLUn/exec');
+            form.setAttribute('target', 'hidden_iframe');
+
+            // Crear un campo de entrada oculto para los datos
+            let input = document.createElement('input');
+            input.setAttribute('type', 'hidden');
+            input.setAttribute('name', 'data');
+            input.setAttribute('value', JSON.stringify(resultados));
+
+            form.appendChild(input);
+            document.body.appendChild(form);
+
+            // Enviar el formulario
+            form.submit();
+
+            // Remover el formulario e iframe del DOM después de un tiempo
+            setTimeout(() => {
+                document.body.removeChild(form);
+                document.body.removeChild(iframe);
+            }, 1000);
+
+            alert("Datos enviados correctamente a Google Drive.");
+        }
+    </script>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Título e información -->
+        <div class="row">
+            <div class="col text-center">
+                <h1>Registro de Velocidad</h1>
+                <p><strong>Localidad:</strong> Torremolinos</p>
+                <p><strong>Temporada:</strong> 2024-25</p>
+            </div>
+        </div>
+        <!-- Botones de guardado -->
+        <div class="row save-buttons">
+            <div class="col text-right">
+                <!-- Icono de Google Drive -->
+                <img src="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png" alt="Guardar en Drive" title="Guardar en Drive" style="width: 32px; cursor: pointer;" onclick="guardarEnDrive()">
+                <!-- Botones existentes -->
+                <button class="btn btn-outline-secondary btn-sm" onclick="guardarResultadosEnTXT()">TXT</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="guardarResultadosEnCSV()">CSV</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="guardarResultadosEnPDF()">PDF</button>
+            </div>
+        </div>
+        <!-- Selector de alumno -->
+        <div class="row justify-content-center mb-3">
+            <div class="col-12 col-md-8 mb-2">
+<select id="alumno" class="form-control">
+    <option value="">Selecciona un Alumno/a...</option>
+    <option value="Jiménez Mesa, Francisco"> Jiménez Mesa, Francisco</option>
+    <option value="Menéndez Serrano, Antonio">Menéndez Serrano, Antonio</option>
+    <option value="Pastor López, Eduardo">Pastor López, Eduardo</option>
+    <option value="Piñero Garcia, Antonio Luis">Piñero Garcia, Antonio Luis</option>
+    <option value="Rodríguez Maeso, Javier">Rodríguez Maeso, Javier</option>
+</select>
+
+            </div>
+        </div>
+        <!-- Cronómetro -->
+        <div class="row">
+            <div class="col text-center">
+                <div id="cronometro">00:00:00.00</div>
+            </div>
+        </div>
+        <!-- Botones de inicio y detención -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-6 col-sm-4 col-md-2 mb-2">
+                <button class="btn btn-success btn-block" onclick="iniciarCronometro()">Iniciar</button>
+            </div>
+            <div class="col-6 col-sm-4 col-md-2 mb-2">
+                <button class="btn btn-danger btn-block" onclick="detenerCronometro()">Detener</button>
+            </div>
+        </div>
+        <!-- Tabla de resultados -->
+        <div class="row">
+            <div class="col">
+                <div class="table-responsive">
+                    <table id="tablaResultados" class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Alumno/a</th>
+                                <th>Tiempo</th>
+                                <th>Fecha y Hora</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Iframe oculto -->
+        <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+    </div>
+    <footer>
+        <p>Informe generado por Antonio J. Olivares. Todos los derechos reservados.</p>
+    </footer>
+</body>
+</html>
+
